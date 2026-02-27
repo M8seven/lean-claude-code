@@ -13,7 +13,11 @@ The thesis: a lean setup with targeted hooks beats 15 plugins. This repo is the 
 | Component | What it does | Replaces |
 |---|---|---|
 | Model routing rules | Routes Haiku/Sonnet/Opus by task complexity — saves ~60% on token costs | Burning Opus on file searches |
+| Deny list | Blocks reads on `.ssh`, `.aws`, `.env`, credentials, `.pem`; blocks `rm -rf`, `curl\|bash` | Security plugins, manual vigilance |
 | Sensitive file hook | Blocks writes to `.env`, `.pem`, credentials files at the hook level | Security plugins |
+| Dev server guard | Blocks `npm run dev` / `expo start` if not backgrounded — prevents session lockup | Nothing (most setups don't handle this) |
+| PR URL logger | Logs the PR URL after `gh pr create` | Scrolling through output |
+| Phase-based compact | Compact on phase transitions, not arbitrary turn counts | Timer-based `/compact` rules |
 | Memory re-injection hook | Restores project context automatically after `/compact` | Memory management plugins |
 | Statusline script | Shows model name + context% + session cost in real-time | Status line plugins |
 | Multi-agent pattern | Commander/implementer architecture for parallel feature work | Agent framework plugins |
@@ -37,6 +41,38 @@ Then customize:
 - `CLAUDE.md` — model routing thresholds, work principles
 - `settings.json` — project-specific paths in the SessionStart hook (the memory hook path), add your own project memory files
 - `statusline-command.sh` — cost rates if you use different models
+
+## Security Hardening
+
+The deny list and hooks work together as defense in depth:
+
+```
+Layer 1: Deny list (permissions)     → hard block on Read/Write/Bash patterns
+Layer 2: PreToolUse hook (Edit/Write) → blocks sensitive file modifications
+Layer 3: PreToolUse hook (Bash)       → blocks dev server session lockups
+```
+
+**Why both deny list AND hooks?** The deny list blocks at the permissions level before the tool even runs. The hooks catch edge cases with richer logic (e.g., pattern matching on file extensions). Neither alone covers everything — together they do.
+
+What's blocked:
+- **Reading** secrets: `~/.ssh/*`, `~/.aws/*`, `~/.gnupg/*`, `**/.env`, `**/credentials*`, `**/*.pem`, `**/*.p8`
+- **Writing** to critical dirs: `~/.ssh/*`, `~/.aws/*`
+- **Destructive commands**: `rm -rf /`, `rm -rf ~`, `curl|bash`, `wget|bash`
+- **Session-blocking commands**: `npm run dev`, `expo start`, etc. (unless backgrounded)
+
+## Phase-Based Compact
+
+Don't compact on a timer. Compact on **phase transitions**:
+
+| Transition | Compact? | Why |
+|---|---|---|
+| Research -> Planning | YES | Research is bulk data, the plan is the output |
+| Planning -> Implementation | YES | Plan is already saved in files/todos |
+| Debugging -> Next feature | YES | Debug traces pollute future decisions |
+| After failed approach | YES | Clean dead-end reasoning from context |
+| **Mid-implementation** | **NO** | You lose variable names, file paths, and undocumented decisions |
+
+The last rule matters most: a badly timed compact costs more time than it saves.
 
 ## Multi-Agent Pattern
 

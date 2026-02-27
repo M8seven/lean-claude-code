@@ -28,7 +28,16 @@ When a task has more than 2 subtasks, MUST use multiple agents (Task tool):
 - **Sub-agent model**: Haiku or Sonnet (based on subtask type — see table above)
 
 ## Context & Session Hygiene
-- Use `/compact` after ~15-20 turns or when context feels bloated — saves 40-60% tokens
+- Use `/compact` based on **phase transitions**, not turn count:
+
+| Transition | Compact? | Why |
+|---|---|---|
+| Research -> Planning | YES | Research is bulk data, the plan is the output |
+| Planning -> Implementation | YES | Plan is already saved in files/todos |
+| Debugging -> Next feature | YES | Debug traces pollute future decisions |
+| After failed approach | YES | Clean dead-end reasoning from context |
+| **Mid-implementation** | **NO** | You lose variable names, file paths, and decisions not written anywhere |
+
 - Start a new session for unrelated tasks instead of continuing a long conversation
 - CLAUDE.md files: keep under 250 lines. Move details to linked files if growing beyond that
 - Prefer `Glob` and `Grep` directly over spawning Explore agents for simple, targeted searches (1-2 queries)

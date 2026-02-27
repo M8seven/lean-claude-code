@@ -13,7 +13,11 @@ La tesi: un setup lean con hook mirati batte 15 plugin. Questo repo e' il risult
 | Componente | Cosa fa | Sostituisce |
 |---|---|---|
 | Regole di model routing | Instrada Haiku/Sonnet/Opus per complessita' — risparmia ~60% sui costi token | Bruciare Opus per cercare file |
+| Deny list | Blocca lettura di `.ssh`, `.aws`, `.env`, credenziali, `.pem`; blocca `rm -rf`, `curl\|bash` | Plugin di sicurezza, vigilanza manuale |
 | Hook file sensibili | Blocca scritture su `.env`, `.pem`, file credenziali a livello di hook | Plugin di sicurezza |
+| Guardia dev server | Blocca `npm run dev` / `expo start` se non in background — previene blocco sessione | Nulla (la maggior parte dei setup non gestisce questo) |
+| Logger PR URL | Logga l'URL della PR dopo `gh pr create` | Scrollare l'output |
+| Compact per fase | Compact sulle transizioni di fase, non su conteggio turni arbitrario | Regole `/compact` a timer |
 | Hook re-iniezione memoria | Ripristina il contesto del progetto automaticamente dopo `/compact` | Plugin di gestione memoria |
 | Script statusline | Mostra modello + contesto% + costo sessione in tempo reale | Plugin statusline |
 | Pattern multi-agent | Architettura commander/implementer per lavoro parallelo | Plugin framework agent |
@@ -37,6 +41,38 @@ Poi personalizza:
 - `CLAUDE.md` — soglie di routing modelli, principi di lavoro
 - `settings.json` — path specifici del progetto nell'hook SessionStart (il path del file memoria), aggiungi i tuoi file memoria
 - `statusline-command.sh` — tariffe costo se usi modelli diversi
+
+## Security Hardening
+
+La deny list e gli hook lavorano insieme come difesa a strati:
+
+```
+Layer 1: Deny list (permissions)      → blocco hard su pattern Read/Write/Bash
+Layer 2: PreToolUse hook (Edit/Write) → blocca modifiche a file sensibili
+Layer 3: PreToolUse hook (Bash)       → blocca dev server che bloccano la sessione
+```
+
+**Perche' entrambi?** La deny list blocca a livello permessi prima che il tool parta. Gli hook gestiscono casi piu' complessi con logica (es. pattern matching su estensioni). Nessuno dei due da solo copre tutto — insieme si'.
+
+Cosa viene bloccato:
+- **Lettura** segreti: `~/.ssh/*`, `~/.aws/*`, `~/.gnupg/*`, `**/.env`, `**/credentials*`, `**/*.pem`, `**/*.p8`
+- **Scrittura** in dir critiche: `~/.ssh/*`, `~/.aws/*`
+- **Comandi distruttivi**: `rm -rf /`, `rm -rf ~`, `curl|bash`, `wget|bash`
+- **Comandi che bloccano la sessione**: `npm run dev`, `expo start`, ecc. (a meno che non siano in background)
+
+## Compact per Fase
+
+Non fare compact a timer. Fallo sulle **transizioni di fase**:
+
+| Transizione | Compact? | Perche' |
+|---|---|---|
+| Research -> Planning | SI | La ricerca e' bulk data, il piano e' l'output |
+| Planning -> Implementation | SI | Il piano e' gia' salvato in file/todo |
+| Debugging -> Next feature | SI | Le tracce di debug inquinano le decisioni future |
+| Dopo approccio fallito | SI | Pulisci il ragionamento dead-end dal contesto |
+| **Meta' implementazione** | **NO** | Perdi nomi variabili, path, e decisioni non documentate |
+
+L'ultima regola e' la piu' importante: un compact al momento sbagliato costa piu' tempo di quanto ne risparmi.
 
 ## Pattern Multi-Agent
 

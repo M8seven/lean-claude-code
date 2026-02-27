@@ -11,7 +11,24 @@
       "WebSearch(*)",
       "NotebookEdit(*)"
     ],
-    "deny": []
+    "deny": [
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)",
+      "Read(~/.gnupg/*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/credentials*)",
+      "Read(**/*.p8)",
+      "Read(**/*.pem)",
+      "Write(~/.ssh/*)",
+      "Write(~/.aws/*)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(curl * | bash)",
+      "Bash(wget * | bash)",
+      "Bash(curl * | sh)",
+      "Bash(wget * | sh)"
+    ]
   },
   "hooks": {
     "SessionStart": [
@@ -32,6 +49,26 @@
           {
             "type": "command",
             "command": "FILE=$(echo $CLAUDE_TOOL_INPUT | jq -r '.file_path // .new_file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ]; then case \"$FILE\" in *.env|*.env.*|*credentials*|*.p8|*.pem) echo 'BLOCKED: attempt to modify sensitive file' >&2; exit 2;; esac; fi; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const cmd=i.tool_input?.command||'';if(/(npm run dev\\b|npx expo start\\b|pnpm( run)? dev\\b|yarn dev\\b|bun run dev\\b)/.test(cmd)&&!/tmux|&$|nohup|run_in_background/.test(cmd)){console.error('[Hook] BLOCKED: Dev server blocks the session. Use run_in_background:true or tmux.');process.exit(2)}}catch{}console.log(d)})\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const i=JSON.parse(d);const cmd=i.tool_input?.command||'';if(/gh pr create/.test(cmd)){const out=i.tool_result?.stdout||i.tool_result?.output||'';const m=out.match(/https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/pull\\/\\d+/);if(m)console.error('[Hook] PR created: '+m[0])}}catch{}console.log(d)})\""
           }
         ]
       }
